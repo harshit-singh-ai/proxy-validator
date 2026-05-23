@@ -13,7 +13,6 @@
 Run:
 
 ```bash
-cd /home/harshitsingh/proxy-project-2
 go run .
 ```
 
