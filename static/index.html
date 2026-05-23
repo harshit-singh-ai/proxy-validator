@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Ultra Proxy Checker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root{ --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#7dd3fc; --ok:#34d399; --bad:#fb7185 }
+      body{font-family:Inter,system-ui,Arial,Helvetica,sans-serif;margin:0;background:linear-gradient(180deg,#071026 0%,#0b1220 100%);color:#e6eef6}
+      .container{max-width:1100px;margin:28px auto;padding:20px}
+      .card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+      .tag{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px}
+      .small{font-size:12px;color:var(--muted)}
+      /* Unified button styles */
+      .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid transparent;font-weight:600;cursor:pointer;background:transparent;color:inherit}
+      .btn:focus{outline:2px solid rgba(125,211,252,0.18);outline-offset:2px}
+      .btn[disabled]{opacity:0.55;cursor:not-allowed}
+      .btn-primary{background:linear-gradient(90deg,#0ea5e9,#7dd3fc);color:#052025;border-color:rgba(13,98,128,0.3)}
+      .btn-secondary{background:#0f1724;color:#e6eef6;border-color:rgba(255,255,255,0.04)}
+      .btn-success{background:linear-gradient(90deg,#10b981,#34d399);color:#04221a;border-color:rgba(6,78,59,0.15)}
+      .btn-ghost{background:transparent;color:#cbd5e1;border:1px solid rgba(255,255,255,0.04)}
+      .btn:hover:not([disabled]){filter:brightness(1.03);transform:translateY(-1px)}
+      .form-field{background:#071422;border:1px solid rgba(255,255,255,0.12);color:#e6eef6;padding:8px 10px;border-radius:10px;min-height:40px;outline:none;transition:all .18s ease;width:auto}
+      .form-field:focus{border-color:#7dd3fc;box-shadow:0 0 0 3px rgba(125,211,252,0.18)}
+      .form-field::placeholder{color:rgba(230,238,246,0.55)}
+      select.form-field{appearance:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' stroke='%23cbd5e1' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 8l4 4 4-4' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:14px 14px}
+      .hero-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);padding:24px;border-radius:18px}
+      .table-shell{border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden}
+      .results-table th, .results-table td{border-bottom:1px solid rgba(255,255,255,0.06);}
+      .results-table tbody tr:nth-child(odd){background:rgba(255,255,255,0.02)}
+      .results-table tbody tr:hover{background:rgba(255,255,255,0.05)}
+      .tag.type{background:rgba(125,211,252,0.16);color:#7dd3fc}
+      .tag.elite{background:rgba(52,211,153,0.16);color:#34d399}
+      .tag.anonymous{background:rgba(59,130,246,0.14);color:#93c5fd}
+      .tag.transparent{background:rgba(248,113,113,0.16);color:#fb7185}
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="container">
+        <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6">
+          <div>
+            <h1 class="text-3xl font-semibold">Ultra Proxy Checker</h1>
+            <p class="mt-2 max-w-2xl text-sm text-gray-400">Paste proxy candidates, scan them live, and filter by anonymity or protocol on a polished results dashboard.</p>
+          </div>
+          <div class="text-sm text-gray-400">Status: {{ status }}</div>
+        </header>
+
+        <div class="space-y-4">
+          <div class="card hero-card">
+            <div class="flex flex-col gap-4">
+              <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div class="flex-1">
+                  <div class="text-gray-400 mb-2">Paste proxies (one per line)</div>
+                  <textarea v-model="list" class="w-full h-52 bg-[#071422] text-accent p-3 rounded-2xl font-mono" placeholder="1.2.3.4:8080"></textarea>
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 w-full max-w-sm">
+                  <div class="space-y-2">
+                    <div class="text-gray-400 text-sm">Concurrency</div>
+                    <input v-model.number="concurrency" type="number" min="1" max="2000" class="form-field w-full" />
+                  </div>
+                  <div class="space-y-2">
+                    <div class="text-gray-400 text-sm">Timeout (seconds)</div>
+                    <input v-model.number="timeout" type="number" min="1" max="60" class="form-field w-full" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-wrap gap-2">
+                  <button @click="start" class="btn btn-primary">Start</button>
+                  <button @click="stop" class="btn btn-secondary">Stop</button>
+                  <button @click="downloadGood" class="btn btn-success">Download Good</button>
+                </div>
+                <div class="text-sm text-gray-400">Quickly paste your proxy list, tune concurrency, and hit start.</div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div class="bg-[#071422] p-3 rounded-xl border border-white/5">
+                  <div class="text-sm text-gray-400">Checked</div>
+                  <div class="text-xl font-semibold">{{ checked }}</div>
+                </div>
+                <div class="bg-[#071422] p-3 rounded-xl border border-white/5">
+                  <div class="text-sm text-gray-400">Good</div>
+                  <div class="text-xl font-semibold">{{ found }}</div>
+                </div>
+                <div class="bg-[#071422] p-3 rounded-xl border border-white/5">
+                  <div class="text-sm text-gray-400">Progress</div>
+                  <div class="mt-2 w-full h-3 bg-[#07212a] rounded overflow-hidden"><div :style="{width: prog + '%'}" class="h-full bg-gradient-to-r from-emerald-400 to-sky-300"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-3">
+              <div>
+                <div class="text-lg font-semibold">Live results</div>
+                <div class="text-sm text-gray-400">Sorted and filtered while the check runs.</div>
+              </div>
+              <div class="flex flex-wrap gap-3 items-center">
+                <select v-model="anonymity" class="form-field w-44">
+                  <option value="all">Anonymity: All</option>
+                  <option value="elite">Elite</option>
+                  <option value="anonymous">Anonymous</option>
+                  <option value="transparent">Transparent</option>
+                </select>
+                <select v-model="ptype" class="form-field w-44">
+                  <option value="all">Type: All</option>
+                  <option value="http">HTTP</option>
+                  <option value="https">HTTPS</option>
+                </select>
+                <span class="text-sm text-gray-400">Live results stream</span>
+              </div>
+            </div>
+
+            <div class="overflow-auto rounded-xl border border-white/5">
+              <table class="w-full text-sm border-separate border-spacing-0">
+                <thead class="text-gray-400 bg-[#081325]">
+                  <tr>
+                    <th @click="toggleSort('proxy')" class="cursor-pointer px-3 py-3 text-left">Proxy</th>
+                    <th @click="toggleSort('ok')" class="cursor-pointer px-3 py-3 text-left">Status</th>
+                    <th @click="toggleSort('latency_ms')" class="cursor-pointer px-3 py-3 text-left">Latency</th>
+                    <th @click="toggleSort('anonymity')" class="cursor-pointer px-3 py-3 text-left">Anonymity</th>
+                    <th @click="toggleSort('type')" class="cursor-pointer px-3 py-3 text-left">Type</th>
+                    <th class="px-3 py-3 text-left">Flags</th>
+                    <th @click="toggleSort('error')" class="cursor-pointer px-3 py-3 text-left">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in pageItems" :key="r.proxy" class="border-t border-white/5 hover:bg-white/5">
+                    <td class="px-3 py-3">{{ r.proxy }}</td>
+                    <td class="px-3 py-3"><span :class="['tag', r.anonymity]">{{ r.ok ? 'OK' : 'BAD' }}</span></td>
+                    <td class="px-3 py-3">{{ (r.latency_ms||0).toFixed(1) }} ms</td>
+                    <td class="px-3 py-3"><span :class="['tag', r.anonymity]">{{ r.anonymity }}</span></td>
+                    <td class="px-3 py-3"><span class="tag type">{{ r.type }}</span></td>
+                    <td class="px-3 py-3" v-html="(r.flags||[]).map(f=>`<span class='tag small mr-1'>${f}</span>`).join(' ')"></td>
+                    <td class="px-3 py-3 small">{{ r.error }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="flex flex-col gap-3 mt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-wrap gap-2 items-center">
+                <button @click="prevPage" class="btn btn-ghost">Prev</button>
+                <button @click="nextPage" class="btn btn-ghost">Next</button>
+                <span class="small">Page {{ currentPage }} / {{ totalPages }}</span>
+              </div>
+              <div class="small flex items-center gap-2">
+                <span>Per page:</span>
+                <select v-model.number="pageSize" class="form-field w-24">
+                  <option>10</option>
+                  <option selected>25</option>
+                  <option>50</option>
+                  <option>100</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
